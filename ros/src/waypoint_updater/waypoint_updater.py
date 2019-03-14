@@ -29,8 +29,8 @@ LOG_LEVEL = rospy.INFO
 
 
 MAX_SPEED = 40.0 * 0.27778  # m/s
-MAX_DECC = 10.0  # m/s^2
-LOOKAHEAD_WPS = 50 # Number of waypoints we will publish. You can change this number
+MAX_DECC = 2  # m/s^2
+LOOKAHEAD_WPS = 100 # Number of waypoints we will publish. You can change this number
 DT_BTW_WPS = 0.02  # Time interval s
 
 
@@ -63,7 +63,6 @@ class WaypointUpdater(object):
         self.base_waypoints_last_idx = None
         self.current_closest_wp_idx = None
         self.stopline_wp_idx = None
-        self.dec_start_wp_idx = None
 
         self.loop()
 
@@ -92,12 +91,9 @@ class WaypointUpdater(object):
     def traffic_cb(self, msg):
         if msg.data == -1: # No red traffic light
             self.stopline_wp_idx = None
-            self.dec_start_wp_idx = None
             rospy.loginfo("no red traffic light detected, let's go")
         else: # Red traffic light detected
             self.stopline_wp_idx = msg.data
-            n_wp_to_stop = math.ceil(MAX_SPEED/MAX_DECC/DT_BTW_WPS)
-            self.dec_start_wp_idx = self.stopline_wp_idx - n_wp_to_stop
             rospy.loginfo("red traffic light info received, wp idx=%d", self.stopline_wp_idx)
 
     def obstacle_cb(self, msg):
@@ -124,12 +120,6 @@ class WaypointUpdater(object):
 
         return closest_idx
 
-
-    def distance(self, pt1, pt2):
-        dx = pt1.x - pt2.x
-        dy = pt1.y - pt2.y
-        return math.sqrt(dx*dx + dy*dy)
-
     def generate_lane_object(self):
         lane = Lane()
         if self.current_pose is not None and self.base_waypoints is not None:
@@ -153,21 +143,28 @@ class WaypointUpdater(object):
                 for waypoint in next_wps:
                     waypoint.twist.twist.linear.x = 0
             else: # Deceleration for red traffic light
-                if self.stopline_wp_idx >= 0 and self.dec_start_wp_idx >= 0:
-                    next_wps = self.decelerate_waypoints(next_wps, next_wps_idx_start, next_wps_idx_end)
+                if self.stopline_wp_idx >= 0:
+                    next_wps = self.decelerate_waypoints(next_wps, closest_wp_idx)
             lane.waypoints = next_wps
         return lane
 
-    def decelerate_waypoints(self, next_wps, next_wps_idx_start, next_wps_idx_end):
-        if self.dec_start_wp_idx > next_wps_idx_end:
-            return next_wps
-        else:
-            for wp_idx, wp_pos_idx in enumerate(range(next_wps_idx_start, next_wps_idx_end)):
-                expected_speed = MAX_SPEED - MAX_DECC * (wp_pos_idx - self.dec_start_wp_idx) * DT_BTW_WPS * 1.1
-                next_wps[wp_idx].twist.twist.linear.x = min(expected_speed, next_wps[wp_idx].twist.twist.linear.x)
-            return next_wps
+    def decelerate_waypoints(self, next_wps, closest_wp_idx):
+        for i, wp in enumerate(next_wps):
+            stop_idx = max(self.stopline_wp_idx-closest_wp_idx-7, 0)
+            dist = self.distance(next_wps, i, stop_idx)
+            vel = math.sqrt(2 * MAX_DECC * dist)
+            if vel < 1.0:
+                vel = 0
+            next_wps[i].twist.twist.linear.x = min(vel, next_wps[i].twist.twist.linear.x)
+        return next_wps
 
-
+    def distance(self, waypoints, wp1, wp2):
+        dist = 0
+        dl = lambda a, b: math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2  + (a.z-b.z)**2)
+        for i in range(wp1, wp2+1):
+            dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
+            wp1 = i
+        return dist
 
 if __name__ == '__main__':
     try:
