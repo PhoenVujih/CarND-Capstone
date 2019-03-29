@@ -150,7 +150,7 @@ class WaypointUpdater(object):
 
     def decelerate_waypoints(self, next_wps, closest_wp_idx):
         for i, wp in enumerate(next_wps):
-            stop_idx = max(self.stopline_wp_idx-closest_wp_idx-7, 0)
+            stop_idx = max(self.stopline_wp_idx-closest_wp_idx-5, 0) #Closer to the stopline
             dist = self.distance(next_wps, i, stop_idx)
             vel = math.sqrt(2 * MAX_DECC * dist)
             if vel < 1.0:

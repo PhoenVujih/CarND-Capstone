@@ -60,7 +60,7 @@ class TLDetector(object):
         self.loop()
 
     def loop(self):
-        rate = rospy.Rate(3) # 3 Hz
+        rate = rospy.Rate(6) # 6 Hz
         while not rospy.is_shutdown():
             # Process and publish the traffic light state
             self.process_traffic_lights()

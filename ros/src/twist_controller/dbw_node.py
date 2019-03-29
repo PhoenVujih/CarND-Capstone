@@ -53,7 +53,7 @@ class DBWNode(object):
         self.brake_pub = rospy.Publisher('/vehicle/brake_cmd',
                                          BrakeCmd, queue_size=1)
         
-        pid_gain = [0.3,0.1,0.0,0.0,0.2]
+        pid_gain = [0.3,0.1,0.0,0.0,1.0]
         # TODO: Create `Controller` object
         # self.controller = Controller(<Arguments you wish to provide>)
         kwargs = {
